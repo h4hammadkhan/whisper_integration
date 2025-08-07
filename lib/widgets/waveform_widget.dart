@@ -104,7 +104,8 @@ class _WaveformWidgetState extends State<WaveformWidget>
       return 0.0;
     }
     if (widget.totalDuration!.inMilliseconds == 0) return 0.0;
-    return widget.currentPosition!.inMilliseconds / widget.totalDuration!.inMilliseconds;
+    return widget.currentPosition!.inMilliseconds /
+        widget.totalDuration!.inMilliseconds;
   }
 
   Widget _buildEmptyWaveform() {
@@ -151,21 +152,22 @@ class WaveformPainter extends CustomPainter {
     for (int i = 0; i < amplitudes.length; i++) {
       final x = i * barWidth + barWidth / 2;
       final amplitude = amplitudes[i];
-      
+
       // Add some animation to the amplitude during recording
       double animatedAmplitude = amplitude;
       if (isRecording && i >= amplitudes.length - 10) {
         // Animate the last few bars during recording
-        final animationOffset = math.sin(animationValue * 2 * math.pi + i * 0.5) * 0.1;
+        final animationOffset =
+            math.sin(animationValue * 2 * math.pi + i * 0.5) * 0.1;
         animatedAmplitude = (amplitude + animationOffset).clamp(0.0, 1.0);
       }
-      
+
       final barHeight = animatedAmplitude * maxHeight;
       final normalizedProgress = progress * amplitudes.length;
-      
+
       // Determine color based on progress
       paint.color = i < normalizedProgress ? activeColor : inactiveColor;
-      
+
       // Draw the bar
       canvas.drawLine(
         Offset(x, centerY - barHeight / 2),
@@ -178,13 +180,37 @@ class WaveformPainter extends CustomPainter {
     if (progress > 0) {
       final progressX = progress * size.width;
       final progressPaint = Paint()
-        ..color = activeColor.withOpacity(0.3)
-        ..strokeWidth = 1;
-      
+        ..color = activeColor
+        ..strokeWidth = 2;
+
+      // Draw progress line
       canvas.drawLine(
         Offset(progressX, 0),
         Offset(progressX, size.height),
         progressPaint,
+      );
+
+      // Draw seek dot
+      final dotPaint = Paint()
+        ..color = activeColor
+        ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(
+        Offset(progressX, centerY),
+        4.0,
+        dotPaint,
+      );
+
+      // Draw white border around dot for better visibility
+      final borderPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+
+      canvas.drawCircle(
+        Offset(progressX, centerY),
+        4.0,
+        borderPaint,
       );
     }
   }
@@ -214,7 +240,7 @@ class EmptyWaveformPainter extends CustomPainter {
     final paint = Paint()
       ..color = color.withOpacity(0.3)
       ..strokeCap = StrokeCap.round
-      ..strokeWidth = 2.0;
+      ..strokeWidth = 5.0;
 
     final centerY = size.height / 2;
     final barCount = 50;
@@ -222,16 +248,16 @@ class EmptyWaveformPainter extends CustomPainter {
 
     for (int i = 0; i < barCount; i++) {
       final x = i * barWidth + barWidth / 2;
-      
+
       // Create some baseline variation
       double barHeight = size.height * 0.1;
-      
+
       if (isRecording) {
         // Add animation during recording
         final wave = math.sin(animationValue * 2 * math.pi + i * 0.3);
         barHeight += wave * size.height * 0.2;
       }
-      
+
       canvas.drawLine(
         Offset(x, centerY - barHeight / 2),
         Offset(x, centerY + barHeight / 2),
@@ -346,15 +372,15 @@ class LiveWaveformPainter extends CustomPainter {
     for (int i = 0; i < displayAmplitudes.length; i++) {
       final x = i * barWidth + barWidth / 2;
       final amplitude = displayAmplitudes[i];
-      
+
       // Apply fade effect to older bars
       final fadeRatio = (i + 1) / displayAmplitudes.length;
       final opacity = (fadeRatio * 0.7 + 0.3).clamp(0.0, 1.0);
-      
+
       paint.color = color.withOpacity(opacity);
-      
+
       final barHeight = math.max(amplitude * maxHeight, size.height * 0.05);
-      
+
       canvas.drawLine(
         Offset(x, centerY - barHeight / 2),
         Offset(x, centerY + barHeight / 2),

@@ -142,18 +142,18 @@ class _RecordingButtonState extends State<RecordingButton>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onLongPressStart: (details) {
+      onPanStart: (details) {
         if (!widget.recordingData.isCompleted) {
           widget.onPanStart?.call(details.globalPosition);
           widget.onStartRecording?.call();
         }
       },
-      onLongPressMoveUpdate: (details) {
+      onPanUpdate: (details) {
         if (widget.recordingData.isRecording) {
           widget.onPanUpdate?.call(details.globalPosition);
         }
       },
-      onLongPressEnd: (details) {
+      onPanEnd: (details) {
         if (widget.recordingData.isRecording && !widget.gestureData.isLocked) {
           if (widget.gestureData.shouldCancel) {
             widget.onCancelRecording?.call();
@@ -195,27 +195,32 @@ class _RecordingButtonState extends State<RecordingButton>
               // Cancel progress indicator
               if (widget.gestureData.isCancelling) _buildCancelIndicator(),
 
-              // Main button
+              // Main button with slide-to-cancel effect
               Transform.scale(
                 scale: _scaleAnimation.value,
-                child: Container(
-                  width: widget.size,
-                  height: widget.size,
-                  decoration: BoxDecoration(
-                    color: _getButtonColor(),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: _getButtonColor().withOpacity(0.3),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    _getButtonIcon(),
-                    color: Colors.white,
-                    size: widget.size * 0.4,
+                child: Transform.translate(
+                  offset: widget.gestureData.isCancelling
+                      ? Offset(-widget.gestureData.cancelProgress * 20, 0)
+                      : Offset.zero,
+                  child: Container(
+                    width: widget.size,
+                    height: widget.size,
+                    decoration: BoxDecoration(
+                      color: _getButtonColor(),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: _getButtonColor().withOpacity(0.3),
+                          blurRadius: 8,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      _getButtonIcon(),
+                      color: Colors.white,
+                      size: widget.size * 0.4,
+                    ),
                   ),
                 ),
               ),

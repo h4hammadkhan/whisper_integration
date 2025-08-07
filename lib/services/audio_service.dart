@@ -240,10 +240,25 @@ class AudioService extends ChangeNotifier {
 
     try {
       final file = File(_recordingData.filePath!);
-      if (!await file.exists()) return;
+      if (!await file.exists()) {
+        debugPrint('Audio file does not exist: ${_recordingData.filePath}');
+        return;
+      }
+
+      final fileSize = await file.length();
+      debugPrint('Audio file size: $fileSize bytes');
+
+      // Stop any existing playback first
+      if (_currentSoundHandle != null) {
+        await _soloud.stop(_currentSoundHandle!);
+        _currentSoundHandle = null;
+      }
 
       final audioSource = await _soloud.loadFile(_recordingData.filePath!);
+      debugPrint('Audio source loaded successfully');
+
       _currentSoundHandle = await _soloud.play(audioSource);
+      debugPrint('Audio playback started');
 
       _recordingData = _recordingData.copyWith(
         state: RecordingState.playing,
@@ -251,10 +266,17 @@ class AudioService extends ChangeNotifier {
         playbackPosition: Duration.zero,
       );
 
-      _startPlaybackTimer();
+      // Start a simple timer that just updates the UI without relying on position
+      _startSimplePlaybackTimer();
       notifyListeners();
     } catch (e) {
       debugPrint('Error playing audio: $e');
+      // Reset state on error
+      _recordingData = _recordingData.copyWith(
+        state: RecordingState.completed,
+        playerState: AudioPlayerState.stopped,
+      );
+      notifyListeners();
     }
   }
 
@@ -288,6 +310,7 @@ class AudioService extends ChangeNotifier {
         );
 
         _playbackTimer?.cancel();
+        _currentSoundHandle = null;
         notifyListeners();
       } catch (e) {
         debugPrint('Error stopping audio: $e');
@@ -302,21 +325,52 @@ class AudioService extends ChangeNotifier {
       if (_currentSoundHandle != null && _recordingData.isPlaying) {
         try {
           final position = _soloud.getPosition(_currentSoundHandle!);
-          final positionDuration =
-              Duration(milliseconds: int.parse((position * 1000).toString()));
+
+          // getPosition returns a Duration object
+          final positionDuration = position;
 
           _recordingData =
               _recordingData.copyWith(playbackPosition: positionDuration);
 
           // Check if playback is complete
           if (positionDuration >= _recordingData.duration) {
-            stopAudio();
+            await stopAudio();
           } else {
             notifyListeners();
           }
         } catch (e) {
           debugPrint('Error updating playback position: $e');
+          // Don't stop playback for position update errors, just continue
+          // The audio might still be playing even if we can't get the position
+          notifyListeners();
         }
+      } else {
+        // Cancel timer if not playing
+        timer.cancel();
+      }
+    });
+  }
+
+  void _startSimplePlaybackTimer() {
+    _playbackTimer?.cancel();
+    _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (_currentSoundHandle != null && _recordingData.isPlaying) {
+        // Simple timer that just updates the UI without trying to get position
+        // This avoids the position parsing errors
+        final currentPosition =
+            _recordingData.playbackPosition ?? Duration.zero;
+        final newPosition = currentPosition + const Duration(milliseconds: 100);
+
+        _recordingData = _recordingData.copyWith(playbackPosition: newPosition);
+
+        // Check if we've reached the end
+        if (newPosition >= _recordingData.duration) {
+          stopAudio();
+        } else {
+          notifyListeners();
+        }
+      } else {
+        timer.cancel();
       }
     });
   }

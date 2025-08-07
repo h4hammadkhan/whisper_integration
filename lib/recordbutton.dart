@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'dart:io';
 import 'services/audio_service.dart';
 import 'models/recording_state.dart';
 import 'widgets/waveform_widget.dart';
@@ -125,16 +124,20 @@ class _VoiceRecorderUIState extends State<VoiceRecorderUI>
       currentY: globalPosition.dy,
     );
 
-    _audioService.updateGestureData(updatedGestureData);
+    final finalGestureData = updatedGestureData.copyWith(
+      isCancelling: updatedGestureData.shouldCancel,
+    );
+
+    _audioService.updateGestureData(finalGestureData);
 
     // Handle slide to cancel
-    if (updatedGestureData.shouldCancel && !_showCancelIndicator) {
+    if (finalGestureData.shouldCancel && !_showCancelIndicator) {
       setState(() {
         _showCancelIndicator = true;
       });
       _slideAnimationController.forward();
       HapticFeedback.lightImpact();
-    } else if (!updatedGestureData.shouldCancel && _showCancelIndicator) {
+    } else if (!finalGestureData.shouldCancel && _showCancelIndicator) {
       setState(() {
         _showCancelIndicator = false;
       });
@@ -142,8 +145,9 @@ class _VoiceRecorderUIState extends State<VoiceRecorderUI>
     }
 
     // Handle lock gesture
-    if (updatedGestureData.shouldLock && !updatedGestureData.isLocked) {
-      final lockedGestureData = updatedGestureData.copyWith(isLocked: true);
+    if (finalGestureData.shouldLock && !finalGestureData.isLocked) {
+      final lockedGestureData =
+          finalGestureData.copyWith(isLocked: true, isCancelling: false);
       _audioService.updateGestureData(lockedGestureData);
       setState(() {
         _showLockIndicator = false;
@@ -164,6 +168,9 @@ class _VoiceRecorderUIState extends State<VoiceRecorderUI>
       _handleStopRecording();
     }
 
+    // Reset gesture data
+    _audioService.updateGestureData(const RecordingGestureData());
+
     setState(() {
       _showLockIndicator = false;
       _showCancelIndicator = false;
@@ -177,8 +184,20 @@ class _VoiceRecorderUIState extends State<VoiceRecorderUI>
 
     if (recordingData.isPlaying) {
       await _audioService.pauseAudio();
+    } else if (recordingData.state == RecordingState.playingPaused) {
+      await _audioService.playAudio();
     } else {
       await _audioService.playAudio();
+    }
+  }
+
+  void _handlePauseResumeRecording() async {
+    final recordingData = _audioService.recordingData;
+
+    if (recordingData.isPaused) {
+      await _audioService.resumeRecording();
+    } else {
+      await _audioService.pauseRecording();
     }
   }
 
@@ -292,6 +311,28 @@ class _VoiceRecorderUIState extends State<VoiceRecorderUI>
                       ),
                     );
                   },
+                ),
+
+              // Cancel slide indicator
+              if (_showCancelIndicator &&
+                  audioService.recordingData.isRecording)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.arrow_back, color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Slide left to cancel',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
               // Recording state UI
@@ -453,13 +494,7 @@ class _VoiceRecorderUIState extends State<VoiceRecorderUI>
             _buildActionButton(
               icon: recordingData.isPaused ? Icons.play_arrow : Icons.pause,
               color: Colors.orange,
-              onPressed: () async {
-                if (recordingData.isPaused) {
-                  await _audioService.resumeRecording();
-                } else {
-                  await _audioService.pauseRecording();
-                }
-              },
+              onPressed: _handlePauseResumeRecording,
               label: recordingData.isPaused ? 'Resume' : 'Pause',
             ),
             _buildActionButton(
